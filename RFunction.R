@@ -1,37 +1,29 @@
 library('move2')
-library('lubridate')
-
-## The parameter "data" is reserved for the data object passed on from the previous app
-
-# to display messages to the user in the log file of the App in MoveApps
-# one can use the function from the logger.R file:
-# logger.fatal(), logger.error(), logger.warn(), logger.info(), logger.debug(), logger.trace()
-
-# Showcase injecting app setting (parameter `year`)
-rFunction = function(data, sdk, year, ...) {
-  logger.info(paste("Welcome to the", sdk))
-  result <- if (any(lubridate::year(mt_time(data)) == year)) { 
-    data[lubridate::year(mt_time(data)) == year,]
-  } else {
-    NULL
-  }
-  if (!is.null(result)) {
-    # Showcase creating an app artifact. 
-    # This artifact can be downloaded by the workflow user on Moveapps.
-    artifact <- appArtifactPath("plot.png")
-    logger.info(paste("plotting to artifact:", artifact))
-    png(artifact)
-    plot(result)
-    dev.off()
-  } else {
-    logger.warn("nothing to plot")
-  }
-  # Showcase to access a file ('auxiliary files') that is 
-  # a) provided by the app-developer and 
-  # b) can be overridden by the workflow user.
-  fileName <- paste0(getAppFilePath("yourLocalFileSettingId"), "sample.txt")
-  logger.info(readChar(fileName, file.info(fileName)$size))
-
-  # provide my result to the next app in the MoveApps workflow
-  return(result)
+library('ctmm')
+library("lubridate")
+library("sf")
+library("dplyr")
+# input: move2_loc - output: telemetry.list
+# data <- readRDS("./data/raw/input1.rds")
+rFunction = function(data) {
+  # needed columns: individual.local.identifier (or tag.local.identifier), timestamp, location.long and location.lat
+  data <- mt_as_event_attribute(data, names(mt_track_data(data)))
+  data <- dplyr::mutate(data, location.long=sf::st_coordinates(data)[,1],
+                        location.lat=sf::st_coordinates(data)[,2])
+  
+  mv2df <- data.frame(data)
+  ## as.telemetry expects the track id to be called "individual.local.identifier" this is a quick fix, it might need some more thought to it to make it nicer. HOPE THIS IS FIXED ONCE ctmm INTEGRATES READING IN move2
+  # fix: idtrack colum gets the prefix "track_id:", individual.local.identifier gets the sufix "_original" to manain this original infomation
+  colnames(mv2df)[colnames(mv2df)%in%make.names(mt_track_id_column(data))] <- paste0("track_id:",make.names(mt_track_id_column(data)))
+  colnames(mv2df)[colnames(mv2df)%in%c("individual.local.identifier","individual_local_identifier","individual-local-identifier")] <- paste0(colnames(mv2df)[colnames(mv2df)%in%c("individual.local.identifier","individual_local_identifier","individual-local-identifier")],"_original")
+  mv2df$individual_local_identifier <-mt_track_id(data)
+  mv2df$timestamp <- mt_time(data) # ensuring used timestamps are in the column "timestamp" as expected by as.telemetry()
+  telem <- as.telemetry(mv2df,
+                        timezone=tz(mt_time(data)),
+                        projection= if(st_is_longlat(data)){NULL}else{projection(data)},
+                        na.rm= "col",
+                        keep=T,
+                        drop=F
+  ) # retains all columns, and is always a list
+  return(telem)
 }
