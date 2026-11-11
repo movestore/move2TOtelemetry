@@ -13,8 +13,10 @@ rFunction = function(data) {
   
   mv2df <- data.frame(data)
   ## as.telemetry expects the track id to be called "individual.local.identifier" this is a quick fix, it might need some more thought to it to make it nicer. HOPE THIS IS FIXED ONCE ctmm INTEGRATES READING IN move2
-  # fix: idtrack colum gets the prefix "track_id:", individual.local.identifier gets the sufix "_original" to manain this original infomation
-  colnames(mv2df)[colnames(mv2df)%in%make.names(mt_track_id_column(data))] <- paste0("track_id:",make.names(mt_track_id_column(data)))
+  # fix: idtrack colum gets the prefix "track_id_", individual.local.identifier gets the sufix "_original" to manain this original infomation
+  id_col <- make.names(mt_track_id_column(data))
+  new_name <- tail(make.names(c(colnames(mv2df), paste0("track_id_", id_col)), unique = TRUE), 1)
+  colnames(mv2df)[colnames(mv2df) == id_col] <- new_name
   colnames(mv2df)[colnames(mv2df)%in%c("individual.local.identifier","individual_local_identifier","individual-local-identifier")] <- paste0(colnames(mv2df)[colnames(mv2df)%in%c("individual.local.identifier","individual_local_identifier","individual-local-identifier")],"_original")
   mv2df$individual_local_identifier <-mt_track_id(data)
   mv2df$timestamp <- mt_time(data) # ensuring used timestamps are in the column "timestamp" as expected by as.telemetry()
