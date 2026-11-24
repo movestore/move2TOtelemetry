@@ -18,6 +18,14 @@ rFunction = function(data) {
   colnames(mv2df)[colnames(mv2df)%in%c("individual.local.identifier","individual_local_identifier","individual-local-identifier")] <- paste0(colnames(mv2df)[colnames(mv2df)%in%c("individual.local.identifier","individual_local_identifier","individual-local-identifier")],"_original")
   mv2df$individual_local_identifier <-mt_track_id(data)
   mv2df$timestamp <- mt_time(data) # ensuring used timestamps are in the column "timestamp" as expected by as.telemetry()
+  
+  # Set speed to NA wherever heading is NA (in supported MB column names only).
+  # Temporary workaround for https://github.com/ctmm-initiative/ctmm/issues/72.
+  speed_col <- intersect(names(mv2df), c("ground_speed", "ground.speed"))[1]
+  if (!is.na(speed_col) && "heading" %in% names(mv2df)) {
+    mv2df[[speed_col]][is.na(mv2df$heading)] <- NA
+  }
+  
   telem <- as.telemetry(mv2df,
                         timezone=tz(mt_time(data)),
                         projection= if(st_is_longlat(data)){NULL}else{projection(data)},
